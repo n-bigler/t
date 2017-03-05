@@ -7,6 +7,7 @@ from __future__ import with_statement, print_function
 import os, re, sys, hashlib
 from operator import itemgetter
 from optparse import OptionParser, OptionGroup
+import pdb
 
 
 class InvalidTaskfile(Exception):
@@ -172,10 +173,10 @@ class TaskDict(object):
             else:
                 raise AmbiguousPrefix(prefix)
 
-    def add_task(self, text):
+    def add_task(self, text, priority):
         """Add a new, unfinished task with the given summary text."""
         task_id = _hash(text)
-        self.tasks[task_id] = {'id': task_id, 'text': text}
+        self.tasks[task_id] = {'id': task_id, 'text': text, 'priority': priority}
 
     def edit_task(self, prefix, text):
         """Edit the task with the given prefix.
@@ -227,10 +228,10 @@ class TaskDict(object):
                 tasks[task_id]['prefix'] = prefix
 
         plen = max(map(lambda t: len(t[label]), tasks.values())) if tasks else 0
-        for _, task in sorted(tasks.items()):
+        for _, task in sorted(tasks.items(), key=lambda k: k[1]['priority'], reverse=True):
             if grep.lower() in task['text'].lower():
-                p = '%s - ' % task[label].ljust(plen) if not quiet else ''
-                print(p + task['text'])
+                l = '%s - ' % task[label].ljust(plen) if not quiet else ''
+                print(l + task['text'] + ' - priority: ' + task['priority'])
 
     def write(self, delete_if_empty=False):
         """Flush the finished and unfinished tasks to the files on disk."""
@@ -265,6 +266,9 @@ def _build_parser():
                        help="mark TASK as finished", metavar="TASK")
     actions.add_option("-r", "--remove", dest="remove",
                        help="Remove TASK from list", metavar="TASK")
+    actions.add_option("-p", "--priority", dest="priority",
+                       help="Adds a priority value to the task", metavar="TASK")
+
     parser.add_option_group(actions)
 
     config = OptionGroup(parser, "Configuration Options")
@@ -311,7 +315,10 @@ def _main():
             td.edit_task(options.edit, text)
             td.write(options.delete)
         elif text:
-            td.add_task(text)
+            priority = 0;
+            if options.priority:
+                priority = options.priority
+            td.add_task(text, priority)
             td.write(options.delete)
         else:
             kind = 'tasks' if not options.done else 'done'
